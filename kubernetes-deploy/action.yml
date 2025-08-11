@@ -1,70 +1,109 @@
-- name: Deploy to Kubernetes
-  shell: bash
-  env:
-    MANIFEST: "${{ inputs.manifest }}"
-    NAMESPACE: "${{ inputs.namespace }}"
-    NAME: "${{ inputs.name }}"
-    IMAGE: "${{ inputs.image }}"
-    TAG: "${{ inputs.tag }}"
-    CONTAINER_PORT: "${{ inputs.container_port }}"
-    CONFIG_REF: "${{ inputs.config_ref }}"
-  run: |
-    if [[ -n "$MANIFEST" ]]; then
-      echo "Using provided manifest file: $MANIFEST"
-      kubectl apply -f "$MANIFEST"
-    else
-      echo "Generating deployment YAML from inputs"
-      
-      # Deployment
-      {
-        echo "apiVersion: apps/v1"
-        echo "kind: Deployment"
-        echo "metadata:"
-        echo "  namespace: $NAMESPACE"
-        echo "  name: $NAME"
-        echo "  labels:"
-        echo "    app: $NAME"
-        echo "spec:"
-        echo "  replicas: 1"
-        echo "  selector:"
-        echo "    matchLabels:"
-        echo "      app: $NAME"
-        echo "  template:"
-        echo "    metadata:"
-        echo "      labels:"
-        echo "        app: $NAME"
-        echo "    spec:"
-        echo "      imagePullSecrets:"
-        echo "        - name: dcr-registry"
-        echo "      containers:"
-        echo "        - name: $NAME"
-        echo "          image: dcr.oskadev.com/$IMAGE:$TAG"
-        echo "          imagePullPolicy: Always"
-        echo "          ports:"
-        echo "            - containerPort: $CONTAINER_PORT"
-        if [[ -n "$CONFIG_REF" ]]; then
-          echo "          envFrom:"
-          echo "            - configMapRef:"
-          echo "                name: $CONFIG_REF"
+name: 'Deploy Kubernetes'
+description: 'Setup kubectl and perform deployment to the kubernetes.'
+
+inputs:
+  base64_kube_config:
+    description: 'Base64 encoded kubeconfig for kubectl'
+    required: true
+  image:
+    description: 'Docker image to deploy'
+    required: true
+  tag:
+    description: 'Docker image tag to deploy'
+    required: true
+  name:
+    description: 'Kubernetes name to deploy to'
+    required: true
+  namespace:
+    description: 'Kubernetes namespace to deploy to'
+    required: true
+  container_port:
+    description: 'Application exposed container port'
+    required: true
+  config_ref:
+    description: 'ConfigMap reference (optional)'
+    required: false
+    default: ''
+  manifest:
+    description: 'Optional path to Kubernetes manifest file'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Kubectl
+      uses: tale/kubectl-action@v1
+      with:
+        base64-kube-config: "${{ inputs.base64_kube_config }}"
+
+    - name: Deploy to Kubernetes
+      shell: bash
+      env:
+        MANIFEST: "${{ inputs.manifest }}"
+        NAMESPACE: "${{ inputs.namespace }}"
+        NAME: "${{ inputs.name }}"
+        IMAGE: "${{ inputs.image }}"
+        TAG: "${{ inputs.tag }}"
+        CONTAINER_PORT: "${{ inputs.container_port }}"
+        CONFIG_REF: "${{ inputs.config_ref }}"
+      run: |
+        if [[ -n "$MANIFEST" ]]; then
+          echo "Using provided manifest file: $MANIFEST"
+          kubectl apply -f "$MANIFEST"
+        else
+          echo "Generating deployment YAML from inputs"
+
+          # Deployment
+          {
+            echo "apiVersion: apps/v1"
+            echo "kind: Deployment"
+            echo "metadata:"
+            echo "  namespace: $NAMESPACE"
+            echo "  name: $NAME"
+            echo "  labels:"
+            echo "    app: $NAME"
+            echo "spec:"
+            echo "  replicas: 1"
+            echo "  selector:"
+            echo "    matchLabels:"
+            echo "      app: $NAME"
+            echo "  template:"
+            echo "    metadata:"
+            echo "      labels:"
+            echo "        app: $NAME"
+            echo "    spec:"
+            echo "      imagePullSecrets:"
+            echo "        - name: dcr-registry"
+            echo "      containers:"
+            echo "        - name: $NAME"
+            echo "          image: dcr.oskadev.com/$IMAGE:$TAG"
+            echo "          imagePullPolicy: Always"
+            echo "          ports:"
+            echo "            - containerPort: $CONTAINER_PORT"
+            if [[ -n "$CONFIG_REF" ]]; then
+              echo "          envFrom:"
+              echo "            - configMapRef:"
+              echo "                name: $CONFIG_REF"
+            fi
+          } > deployment.yml
+
+          # Service
+          {
+            echo "---"
+            echo "apiVersion: v1"
+            echo "kind: Service"
+            echo "metadata:"
+            echo "  namespace: $NAMESPACE"
+            echo "  name: $NAME"
+            echo "spec:"
+            echo "  selector:"
+            echo "    app: $NAME"
+            echo "  ports:"
+            echo "    - protocol: TCP"
+            echo "      port: 80"
+            echo "      targetPort: $CONTAINER_PORT"
+          } >> deployment.yml
+
+          kubectl apply -f deployment.yml
         fi
-      } > deployment.yml
-
-      # Service
-      {
-        echo "---"
-        echo "apiVersion: v1"
-        echo "kind: Service"
-        echo "metadata:"
-        echo "  namespace: $NAMESPACE"
-        echo "  name: $NAME"
-        echo "spec:"
-        echo "  selector:"
-        echo "    app: $NAME"
-        echo "  ports:"
-        echo "    - protocol: TCP"
-        echo "      port: 80"
-        echo "      targetPort: $CONTAINER_PORT"
-      } >> deployment.yml
-
-      kubectl apply -f deployment.yml
-    fi
