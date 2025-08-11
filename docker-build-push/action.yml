@@ -40,9 +40,9 @@ runs:
     - name: Build Docker image
       shell: bash 
       run: |
-        docker build -f ${{ inputs.dockerfile }} -t dcr.oskadev.com/${{ inputs.image_name }}:${{ inputs.image_tag }} ${{ inputs.context }}
+        docker build -f ${{ inputs.dockerfile }} -t dcr.oskadev.com/${{ inputs.image }}:${{ inputs.tag }} ${{ inputs.context }}
 
     - name: Push Docker image
       shell: bash 
       run: |
-        docker push ${{ inputs.registry }}/${{ inputs.image_name }}:${{ inputs.image_tag }}
+        docker push ${{ inputs.registry }}/${{ inputs.image }}:${{ inputs.tag }}
