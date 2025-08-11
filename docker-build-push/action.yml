@@ -45,4 +45,4 @@ runs:
     - name: Push Docker image
       shell: bash 
       run: |
-        docker push ${{ inputs.registry }}/${{ inputs.image }}:${{ inputs.tag }}
+        docker push dcr.oskadev.com/${{ inputs.image }}:${{ inputs.tag }}
