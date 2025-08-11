@@ -106,5 +106,4 @@ runs:
           } >> deployment.yml
 
           kubectl apply -f deployment.yml
-          kubectl set image deployment/$NAME $NAME=dcr.oskadev.com/$IMAGE:$TAG --record
         fi
