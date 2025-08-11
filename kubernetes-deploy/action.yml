@@ -20,79 +20,89 @@ inputs:
   container_port:
     description: 'Application exposed container port'
     required: true
+  config_ref:
+    description: 'ConfigMap reference (optional)'
+    required: false
+    default: ''
   manifest:
     description: 'Optional path to Kubernetes manifest file'
     required: false
     default: ''
 
-
 runs:
   using: 'composite'
   steps:
-
     - name: Setup Kubectl
       uses: tale/kubectl-action@v1
       with:
         base64-kube-config: ${{ inputs.base64_kube_config }}
 
-- name: Deploy to Kubernetes
-  shell: bash
-  run: |
-    if [[ -n "${{ inputs.manifest }}" ]]; then
-      echo "Using provided manifest file: ${{ inputs.manifest }}"
-      kubectl apply -f "${{ inputs.manifest }}"
-    else
-      echo "Generating deployment YAML from inputs"
-      cat <<EOF > deployment.yml
+    - name: Deploy to Kubernetes
+      shell: bash
+      env:
+        MANIFEST: ${{ inputs.manifest }}
+        NAMESPACE: ${{ inputs.namespace }}
+        NAME: ${{ inputs.name }}
+        IMAGE: ${{ inputs.image }}
+        TAG: ${{ inputs.tag }}
+        CONTAINER_PORT: ${{ inputs.container_port }}
+        CONFIG_REF: ${{ inputs.config_ref }}
+      run: |
+        if [[ -n "$MANIFEST" ]]; then
+          echo "Using provided manifest file: $MANIFEST"
+          kubectl apply -f "$MANIFEST"
+        else
+          echo "Generating deployment YAML from inputs"
+          cat <<EOF > deployment.yml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: ${{ inputs.namespace }}
-  name: ${{ inputs.name }}
+  namespace: $NAMESPACE
+  name: $NAME
   labels:
-    app: ${{ inputs.name }}
+    app: $NAME
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: ${{ inputs.name }}
+      app: $NAME
   template:
     metadata:
       labels:
-        app: ${{ inputs.name }}
+        app: $NAME
     spec:
       imagePullSecrets:
         - name: dcr-registry
       containers:
-        - name: ${{ inputs.name }}
-          image: dcr.oskadev.com/${{ inputs.image }}:${{ inputs.tag }}
+        - name: $NAME
+          image: dcr.oskadev.com/$IMAGE:$TAG
           imagePullPolicy: 'Always'
           ports:
-            - containerPort: ${{ inputs.container_port }}
+            - containerPort: $CONTAINER_PORT
 EOF
 
-if [[ -n "${{ inputs.config_ref }}" ]]; then
-  cat <<EOF >> deployment.yml
+          if [[ -n "$CONFIG_REF" ]]; then
+            cat <<EOF >> deployment.yml
           envFrom:
             - configMapRef:
-                name: ${{ inputs.config_ref }}
+                name: $CONFIG_REF
 EOF
-fi
+          fi
 
-cat <<EOF >> deployment.yml
+          cat <<EOF >> deployment.yml
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: ${{ inputs.namespace }}
-  name: ${{ inputs.name }}
+  namespace: $NAMESPACE
+  name: $NAME
 spec:
   selector:
-    app: ${{ inputs.name }}
+    app: $NAME
   ports:
     - protocol: TCP
       port: 80
-      targetPort: ${{ inputs.container_port }}
+      targetPort: $CONTAINER_PORT
 EOF
-      kubectl apply -f deployment.yml
-    fi
+          kubectl apply -f deployment.yml
+        fi
