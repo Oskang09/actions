@@ -54,55 +54,55 @@ runs:
         else
           echo "Generating deployment YAML from inputs"
           cat <<EOF > deployment.yml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  namespace: $NAMESPACE
-  name: $NAME
-  labels:
-    app: $NAME
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: $NAME
-  template:
-    metadata:
-      labels:
-        app: $NAME
-    spec:
-      imagePullSecrets:
-        - name: dcr-registry
-      containers:
-        - name: $NAME
-          image: dcr.oskadev.com/$IMAGE:$TAG
-          imagePullPolicy: 'Always'
-          ports:
-            - containerPort: $CONTAINER_PORT
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            namespace: $NAMESPACE
+            name: $NAME
+            labels:
+              app: $NAME
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: $NAME
+            template:
+              metadata:
+                labels:
+                  app: $NAME
+              spec:
+                imagePullSecrets:
+                  - name: dcr-registry
+                containers:
+                  - name: $NAME
+                    image: dcr.oskadev.com/$IMAGE:$TAG
+                    imagePullPolicy: 'Always'
+                    ports:
+                      - containerPort: $CONTAINER_PORT
 EOF
 
           if [[ -n "$CONFIG_REF" ]]; then
             cat <<EOF >> deployment.yml
-          envFrom:
-            - configMapRef:
-                name: $CONFIG_REF
+                    envFrom:
+                      - configMapRef:
+                          name: $CONFIG_REF
 EOF
           fi
 
           cat <<EOF >> deployment.yml
----
-apiVersion: v1
-kind: Service
-metadata:
-  namespace: $NAMESPACE
-  name: $NAME
-spec:
-  selector:
-    app: $NAME
-  ports:
-    - protocol: TCP
-      port: 80
-      targetPort: $CONTAINER_PORT
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            namespace: $NAMESPACE
+            name: $NAME
+          spec:
+            selector:
+              app: $NAME
+            ports:
+              - protocol: TCP
+                port: 80
+                targetPort: $CONTAINER_PORT
 EOF
           kubectl apply -f deployment.yml
         fi
